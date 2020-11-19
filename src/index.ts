@@ -4,11 +4,12 @@ import redis, { RedisClient } from 'redis';
 import { handleCreated, handleJoin } from './lib/RoomManger';
 import type { RoomDetails } from './lib/types/RoomDetails';
 
-const SOCKET_OPTIONS: unknown = {
+require('dotenv').config();
+
+const SOCKET_OPTIONS: unknown = process.env.ENVIRONMENT === 'DEV' ? {
   cors: true,
-  origins:["http://127.0.0.1:5000"],
-};
-const PORT: number = 8080;
+  origins:[process.env.WATCH_PARTY_DEV_HOST],
+} : {};
 
 const app: express.Application = express();
 const server: http.Server = http.createServer(app);
@@ -22,32 +23,37 @@ client.on('error', (err): void => {
 
 // HANDLE SOCKETS
 io.on('connection', (socket: SocketIO.Socket) => {
-  let room: string = "";
-
   console.log(`Socket connected: ${socket.id}`)
-
   // 1. Room Management
 
   socket.on('room-created', (details: RoomDetails) => {
-    room = handleCreated(client, details);
-    socket.join(room);
-    socket.emit('new-room-created', { room })
+    const newRoomId = handleCreated(client, details, socket.id);
+    socket.join(newRoomId);
+
+    // Send room id back to client to update window.location
+    socket.emit('new-room-created', { room: newRoomId })
   })
 
   socket.on('room-joined', (roomId: string) => {
-    const success = handleJoin(client, roomId, socket.id);
+    const oldRoom =  socket.rooms[0]; // NOTE: Sockets can join more than 1 room. Need to enforce 1 room policy
 
-    if (success) {
+    const res = handleJoin(client, [oldRoom, roomId], socket.id);
+
+    if (res.success) {
+      socket.leave(oldRoom);
       socket.join(roomId);
+
       socket.emit('room-join-succeeded')
     } else {
-      socket.emit('room-join-failed')
+      socket.emit('room-join-failed', { message: res.msg })
     }
   })
 
   // 2. Chat Room Usage
 
   socket.on('chat-message-posted', (message) => {
+    const room = socket.rooms[0];
+
     if (room) {
       console.log(`Socket: ${socket.id} wrote message: ${message.body} to room ${room}`)
       socket.to(room).emit('message-captured', message);
@@ -55,12 +61,12 @@ io.on('connection', (socket: SocketIO.Socket) => {
   })
 
   socket.on('disconnect', (reason: string) => {
-
+    // TODO: Handle disconnect
   })
 })
 
 // SERVER INITIALIZATION
 
-server.listen(PORT, () => {
-  console.log(`Server is listening on port: ${PORT}`);
+server.listen(process.env.LUNA_PORT, () => {
+  console.log(`Server is listening on port: ${process.env.LUNA_PORT}`);
 });

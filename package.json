@@ -4,6 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
+    "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "nanoid": "^3.1.16",
     "redis": "^3.0.2",
@@ -17,7 +18,8 @@
     "@types/socket.io": "^2.1.11",
     "nodemon": "^2.0.6",
     "ts-node": "^9.0.0",
-    "typescript": "^4.0.5"
+    "typescript": "^4.0.5",
+    "winston": "^3.3.3"
   },
   "scripts": {
     "start": "npm run build:live",
